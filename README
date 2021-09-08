@@ -1,0 +1,27 @@
+demux-mpegts
+============
+
+Configure:
+
+  run `cmake .`
+
+Building:
+
+  run `make`
+
+Testing:
+
+  run `demux`
+
+Usage: ./demux [options] <file> | -
+
+  Enter '-' instead a file name will process stream from standard input
+
+  --debug            enable debug output
+  --parseonly        only parse streams
+  --channel <id>     process channel <id>. Default 0 for all channels
+  -h, --help         print this help
+
+Output file names are formated like:
+
+  stream_[channel]_[PID]_[type extension]
