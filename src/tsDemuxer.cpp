@@ -1,7 +1,7 @@
 #include "tsDemuxer.h"
 #include "ES_MPEGVideo.h"
 #include "ES_MPEGAudio.h"
-#include "debug.h"
+
 
 #include <cassert>
 
@@ -243,7 +243,7 @@ int AVContext::configure_ts()
       // One and only one is eligible
       if (count == 1)
       {
-        DBG(DEMUX_DBG_DEBUG, "%s: packet size is %d\n", __FUNCTION__, fluts[found][0]);
+        
         av_pkt_size = fluts[found][0];
         av_pos = pos;
         return AVCONTEXT_CONTINUE;
@@ -260,7 +260,6 @@ int AVContext::configure_ts()
       pos++;
   }
 
-  DBG(DEMUX_DBG_ERROR, "%s: invalid stream\n", __FUNCTION__);
   return AVCONTEXT_TS_NOSYNC;
 }
 
@@ -428,7 +427,6 @@ int AVContext::ProcessTSPacket()
         if (!this->payload_unit_start)
         {
           it->second.Reset();
-          DBG(DEMUX_DBG_WARN, "PID %.4x discontinuity detected: found %u, expected %u\n", this->pid, continuity_counter, expected_cc);
           return AVCONTEXT_DISCONTINUITY;
         }
       }
@@ -483,7 +481,7 @@ int AVContext::ProcessTSPayload()
 
 void AVContext::clear_pmt()
 {
-  DBG(DEMUX_DBG_DEBUG, "%s\n", __FUNCTION__);
+ 
   std::vector<uint16_t> pid_list;
   for (std::map<uint16_t, Packet>::iterator it = this->packets.begin(); it != this->packets.end(); ++it)
   {
@@ -499,7 +497,6 @@ void AVContext::clear_pmt()
 
 void AVContext::clear_pes(uint16_t channel)
 {
-  DBG(DEMUX_DBG_DEBUG, "%s(%u)\n", __FUNCTION__, channel);
   std::vector<uint16_t> pid_list;
   for (std::map<uint16_t, Packet>::iterator it = this->packets.begin(); it != this->packets.end(); ++it)
   {
@@ -510,22 +507,6 @@ void AVContext::clear_pes(uint16_t channel)
     this->packets.erase(*it);
 }
 
-/*
- * Parse PSI payload
- *
- * returns:
- *
- * AVCONTEXT_CONTINUE
- *   Parse completed. Continue to next packet
- *
- * AVCONTEXT_PROGRAM_CHANGE
- *   Parse completed. The program has changed. All streams are resetted and
- *   streaming flag is set to false. Client must inspect streams MAP and enable
- *   streaming for those recognized.
- *
- * AVCONTEXT_TS_ERROR
- *  Parsing error !
- */
 int AVContext::parse_ts_psi()
 {
   size_t len;
@@ -535,27 +516,20 @@ int AVContext::parse_ts_psi()
 
   if (this->payload_unit_start)
   {
-    // Reset wait for unit start
+   
     this->packet->wait_unit_start = false;
-    // pointer field present
     len = (size_t)av_rb8(this->payload);
     if (len > this->payload_len)
     {
       return AVCONTEXT_TS_ERROR;
     }
-
-    // table ID
     uint8_t table_id = av_rb8(this->payload + 1);
-
-    // table length
     len = (size_t)av_rb16(this->payload + 2);
     if ((len & 0x3000) != 0x3000)
     {
       return AVCONTEXT_TS_ERROR;
-
     }
     len &= 0x0fff;
-
     this->packet->packet_table.Reset();
 
     size_t n = this->payload_len - 4;
@@ -563,13 +537,13 @@ int AVContext::parse_ts_psi()
     this->packet->packet_table.table_id = table_id;
     this->packet->packet_table.offset = n;
     this->packet->packet_table.len = len;
-    // check for incomplete section
+
     if (this->packet->packet_table.offset < this->packet->packet_table.len)
       return AVCONTEXT_CONTINUE;
   }
   else
   {
-    // next part of PSI
+    
     if (this->packet->packet_table.offset == 0)
     {
       return AVCONTEXT_TS_ERROR;
@@ -581,12 +555,12 @@ int AVContext::parse_ts_psi()
     }
     memcpy(this->packet->packet_table.buf + this->packet->packet_table.offset, this->payload, this->payload_len);
     this->packet->packet_table.offset += this->payload_len;
-    // check for incomplete section
+  
     if (this->packet->packet_table.offset < this->packet->packet_table.len)
       return AVCONTEXT_CONTINUE;
   }
 
-  // now entire table is filled
+
   const unsigned char* psi = this->packet->packet_table.buf;
   const unsigned char* end_psi = psi + this->packet->packet_table.len;
 
@@ -594,22 +568,16 @@ int AVContext::parse_ts_psi()
   {
     case 0x00: // parse PAT table
     {
-      // check if version number changed
+
       uint16_t id = av_rb16(psi);
-      // check if applicable
       if ((av_rb8(psi + 2) & 0x01) == 0)
         return AVCONTEXT_CONTINUE;
-      // check if version number changed
       uint8_t version = (av_rb8(psi + 2) & 0x3e) >> 1;
       if (id == this->packet->packet_table.id && version == this->packet->packet_table.version)
         return AVCONTEXT_CONTINUE;
-      DBG(DEMUX_DBG_DEBUG, "%s: new PAT version %u\n", __FUNCTION__, version);
+       clear_pmt();
 
-      // clear old associated pmt
-      clear_pmt();
-
-      // parse new version of PAT
-      psi += 5;
+       psi += 5;
 
       end_psi -= 4; // CRC32
 
@@ -634,20 +602,18 @@ int AVContext::parse_ts_psi()
         uint16_t channel = av_rb16(psi);
         uint16_t pmt_pid = av_rb16(psi + 2);
 
-        // Reserved fields in table sections must be "set" to '1' bits.
-        //if ((pmt_pid & 0xe000) != 0xe000)
-        //  return AVCONTEXT_TS_ERROR;
-
         pmt_pid &= 0x1fff;
+		printf("<Program id > = %d\n", pmt_pid);
+		
 
-        DBG(DEMUX_DBG_DEBUG, "%s: PAT version %u: new PMT %.4x channel %u\n", __FUNCTION__, version, pmt_pid, channel);
+        
         if (this->channel == 0 || this->channel == channel)
         {
           Packet& pmt = this->packets[pmt_pid];
           pmt.pid = pmt_pid;
           pmt.packet_type = PACKET_TYPE_PSI;
           pmt.channel = channel;
-          DBG(DEMUX_DBG_DEBUG, "%s: PAT version %u: register PMT %.4x channel %u\n", __FUNCTION__, version, pmt_pid, channel);
+         
         }
       }
       // PAT is processed. New version is available
@@ -665,7 +631,7 @@ int AVContext::parse_ts_psi()
       uint8_t version = (av_rb8(psi + 2) & 0x3e) >> 1;
       if (id == this->packet->packet_table.id && version == this->packet->packet_table.version)
         return AVCONTEXT_CONTINUE;
-      DBG(DEMUX_DBG_DEBUG, "%s: PMT(%.4x) version %u\n", __FUNCTION__, this->packet->pid, version);
+      
 
       // clear old pes
       clear_pes(this->packet->channel);
@@ -707,8 +673,8 @@ int AVContext::parse_ts_psi()
 
         // ignore unknown streams
         STREAM_TYPE stream_type = get_stream_type(pes_type);
-        DBG(DEMUX_DBG_DEBUG, "%s: PMT(%.4x) version %u: new PES %.4x %s\n", __FUNCTION__,
-                  this->packet->pid, version, pes_pid, ElementaryStream::GetStreamCodecName(stream_type));
+       
+                 
         if (stream_type != STREAM_TYPE_UNKNOWN)
         {
           Packet& pes = this->packets[pes_pid];
@@ -741,8 +707,7 @@ int AVContext::parse_ts_psi()
           es->stream_type = stream_type;
           es->stream_info = stream_info;
           pes.stream = es;
-          DBG(DEMUX_DBG_DEBUG, "%s: PMT(%.4x) version %u: register PES %.4x %s\n", __FUNCTION__,
-                  this->packet->pid, version, pes_pid, es->GetStreamCodecName());
+         
         }
         psi += len;
       }
@@ -776,7 +741,7 @@ STREAM_INFO AVContext::parse_pes_descriptor(const unsigned char* p, size_t len, 
     uint8_t desc_tag = av_rb8(p);
     uint8_t desc_len = av_rb8(p + 1);
     p += 2;
-    DBG(DEMUX_DBG_DEBUG, "%s: tag %.2x len %d\n", __FUNCTION__, desc_tag, desc_len);
+    
     switch (desc_tag)
     {
       case 0x02:

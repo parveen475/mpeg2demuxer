@@ -51,6 +51,8 @@ void ES_MPEG2Audio::Parse(STREAM_PKT* pkt)
   {
     bool streamChange = SetAudioInformation(m_Channels, m_SampleRate, m_BitRate, 0, 0);
     pkt->pid            = pid;
+	printf("<audio id > = %d\n", pid);
+	printf("</audio>\n");
     pkt->data           = &es_buf[p];
     pkt->size           = m_FrameSize;
     pkt->duration       = 90000 * 1152 / m_SampleRate;

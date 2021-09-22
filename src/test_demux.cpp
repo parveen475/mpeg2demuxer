@@ -6,11 +6,7 @@
 #include <inttypes.h>
 
 #include "test_demux.h"
-#include "debug.h"
 
-#define LOGTAG  "[DEMUX] "
-
-int g_loglevel = DEMUX_DBG_INFO;
 int g_parseonly = 0;
 
 Demux::Demux(FILE* file, uint16_t channel)
@@ -26,17 +22,12 @@ Demux::Demux(FILE* file, uint16_t channel)
     m_av_rbe = m_av_buf;
     m_channel = channel;
 
-    TSDemux::DBGLevel(g_loglevel);
-
+    
     m_mainStreamPID = 0xffff;
     m_DTS = PTS_UNSET;
     m_PTS = PTS_UNSET;
     m_pinTime = m_curTime = m_endTime = 0;
     m_AVContext = new TSDemux::AVContext(this, 0, m_channel);
-  }
-  else
-  {
-    printf(LOGTAG "alloc AV buffer failed\n");
   }
 }
 
@@ -52,7 +43,6 @@ Demux::~Demux()
   // Free AV buffer
   if (m_av_buf)
   {
-    printf(LOGTAG "free AV buffer: allocated size was %zu\n", m_av_buf_size);
     free(m_av_buf);
     m_av_buf = NULL;
   }
@@ -146,20 +136,13 @@ int Demux::Do()
       }
     }
 
-    if (ret < 0)
-      printf(LOGTAG "%s: error %d\n", __FUNCTION__, ret);
-
     if (ret == TSDemux::AVCONTEXT_TS_ERROR)
       m_AVContext->Shift();
     else
       m_AVContext->GoNext();
   }
 
-  printf(LOGTAG "## %d: no sync, %d: eof, %d: ts error ##\n",
-         TSDemux::AVCONTEXT_TS_NOSYNC,
-         TSDemux::AVCONTEXT_IO_ERROR,
-         TSDemux::AVCONTEXT_TS_ERROR);
-  printf(LOGTAG "%s: stopped with status %d\n", __FUNCTION__, ret);
+  
   return ret;
 }
 
@@ -190,8 +173,7 @@ bool Demux::get_stream_data(TSDemux::STREAM_PKT* pkt)
         item.av_pos = m_AVContext->GetPosition();
         m_posmap.insert(std::make_pair(m_curTime, item));
         m_endTime = m_curTime;
-        printf(LOGTAG "time %09.3f : PTS=%" PRIu64 " Position=%" PRIu64 "\n", (double)(m_curTime) / PTS_TIME_BASE, item.av_pts, item.av_pos);
-      }
+       }
     }
     // Sync main DTS & PTS
     m_DTS = pkt->dts;
@@ -221,21 +203,6 @@ void Demux::register_pmt()
     {
       uint16_t channel = m_AVContext->GetChannel((*it)->pid);
       const char* codec_name = (*it)->GetStreamCodecName();
-      if (!g_parseonly)
-      {
-        std::map<uint16_t, FILE*>::iterator fit = m_outfiles.find((*it)->pid);
-        if (fit == m_outfiles.end())
-        {
-          char filename[512];
-          sprintf(filename, "stream_%u_%.4x_%s", channel, (*it)->pid, codec_name);
-          printf(LOGTAG "stream channel %u PID %.4x codec %s to file '%s'\n", channel, (*it)->pid, codec_name, filename);
-          FILE* ofile = fopen(filename, "wb+");
-          if (ofile)
-            m_outfiles.insert(std::make_pair((*it)->pid, ofile));
-          else
-            printf(LOGTAG "cannot open file '%s' for write\n", filename);
-        }
-      }
       m_AVContext->StartStreaming((*it)->pid);
     }
   }
@@ -256,24 +223,7 @@ void Demux::show_stream_info(uint16_t pid)
   if (!es)
     return;
 
-  uint16_t channel = m_AVContext->GetChannel(pid);
-  printf(LOGTAG "dump stream infos for channel %u PID %.4x\n", channel, es->pid);
-  printf("  Codec name     : %s\n", es->GetStreamCodecName());
-  printf("  Language       : %s\n", es->stream_info.language);
-  printf("  Identifier     : %.8x\n", stream_identifier(es->stream_info.composition_id, es->stream_info.ancillary_id));
-  printf("  FPS scale      : %d\n", es->stream_info.fps_scale);
-  printf("  FPS rate       : %d\n", es->stream_info.fps_rate);
-  printf("  Interlaced     : %s\n", (es->stream_info.interlaced ? "true" : "false"));
-  printf("  Height         : %d\n", es->stream_info.height);
-  printf("  Width          : %d\n", es->stream_info.width);
-  printf("  Aspect         : %3.3f\n", es->stream_info.aspect);
-  printf("  Channels       : %d\n", es->stream_info.channels);
-  printf("  Sample rate    : %d\n", es->stream_info.sample_rate);
-  printf("  Block align    : %d\n", es->stream_info.block_align);
-  printf("  Bit rate       : %d\n", es->stream_info.bit_rate);
-  printf("  Bit per sample : %d\n", es->stream_info.bits_per_sample);
-  printf("\n");
-}
+ }
 
 void Demux::write_stream_data(TSDemux::STREAM_PKT* pkt)
 {
@@ -312,28 +262,7 @@ int main(int argc, char* argv[])
   int i = 0;
   while (++i < argc)
   {
-    if (strcmp(argv[i], "--debug") == 0)
-    {
-      g_loglevel = DEMUX_DBG_DEBUG;
-      fprintf(stderr, "debug=Yes, ");
-    }
-    else if (strcmp(argv[i], "--parseonly") == 0)
-    {
-      g_parseonly = 1;
-      fprintf(stderr, "parseonly=Yes, ");
-    }
-    else if (strcmp(argv[i], "--channel") == 0 && ++i < argc)
-    {
-      channel = atoi(argv[i]);
-      fprintf(stderr, "channel=%d, ",channel);
-    }
-    else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
-    {
-      usage(argv[0]);
-      return 0;
-    }
-    else
-      filename = argv[i];
+    filename = argv[i];
   }
 
   if (filename)

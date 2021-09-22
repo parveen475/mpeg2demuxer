@@ -1,7 +1,5 @@
 
 #include "elementaryStream.h"
-#include "debug.h"
-
 #include <cstdlib>    // for malloc free size_t
 #include <cstring>    // memset memcpy memmove
 #include <climits>    // for INT_MAX
@@ -34,8 +32,7 @@ ElementaryStream::~ElementaryStream(void)
 {
   if (es_buf)
   {
-    DBG(DEMUX_DBG_DEBUG, "free stream buffer %.4x: allocated size was %zu\n", pid, es_alloc);
-    free(es_buf);
+     free(es_buf);
     es_buf = NULL;
   }
 }
@@ -84,7 +81,7 @@ int ElementaryStream::Append(const unsigned char* buf, size_t len, bool new_pts)
     if (n > ES_MAX_BUFFER_SIZE)
       n = ES_MAX_BUFFER_SIZE;
 
-    DBG(DEMUX_DBG_DEBUG, "realloc buffer size to %zu for stream %.4x\n", n, pid);
+    
     unsigned char* p = es_buf;
     es_buf = (unsigned char*)realloc(es_buf, n * sizeof(*es_buf));
     if (es_buf)

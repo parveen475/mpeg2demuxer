@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "ES_MPEGVideo.h"
 #include "bitstream.h"
-#include "debug.h"
 
 using namespace TSDemux;
 
@@ -96,6 +95,8 @@ void ES_MPEG2Video::Parse(STREAM_PKT *pkt)
       }
 
       pkt->pid          = pid;
+	  printf("<video id > = %d\n", pid);
+	  printf("</Video>\n");
       pkt->size         = es_consumed - frame_ptr;
       pkt->data         = &es_buf[frame_ptr];
       pkt->dts          = m_DTS;
@@ -234,7 +235,7 @@ bool ES_MPEG2Video::Parse_MPEG2Video_SeqStart(uint8_t *buf)
       m_Dar = 2.21f;
       break;
     default:
-      DBG(DEMUX_DBG_ERROR, "invalid / forbidden DAR in sequence header !\n");
+      
       return false;
   }
 
